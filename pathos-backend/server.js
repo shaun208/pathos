@@ -1,56 +1,39 @@
 const express = require('express');
-const { GoogleGenerativeAI, SchemaType } = require("@google/generative-ai");
 const cors = require('cors');
-require('dotenv').config();
+const Groq = require("groq-sdk");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-const genAI = new GoogleGenerativeAI("AIzaSyAtUiUPUS_SVRvZoC5_WcggxLe4mnrhLdg");
-
-// Define the schema so the AI CANNOT mess up the JSON format
-const surveySchema = {
-  type: SchemaType.OBJECT,
-  properties: {
-    isComplete: { type: SchemaType.BOOLEAN },
-    nextQuestion: { type: SchemaType.STRING, nullable: true },
-    pathway: {
-      type: SchemaType.ARRAY,
-      items: {
-        type: SchemaType.OBJECT,
-        properties: {
-          step: { type: SchemaType.STRING },
-          description: { type: SchemaType.STRING }
-        }
-      }
-    }
-  }
-};
-
-const model = genAI.getGenerativeModel({
-  model: "gemini-2.0-flash", // Use Flash for speed in a hackathon
-  generationConfig: {
-    responseMimeType: "application/json",
-    responseSchema: surveySchema,
-  },
-});
+const groq = new Groq({ apiKey: "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" });
 
 app.post('/api/survey', async (req, res) => {
-  const { messages } = req.body;
-  
-  const systemPrompt = "You are a life coach AI. Analyze user goals in emotional, social, or mental health. Ask max 4 follow-up questions to tailor a plan. If you have enough info, set isComplete to true and provide the pathway.";
+  try {
+    const { messages } = req.body;
 
-  // Convert your message history into Gemini's format
-  const chat = model.startChat({
-    history: messages.map(m => ({
-      role: m.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: m.content }],
-    })),
-  });
+    const formattedMessages = messages.map(m => ({
+      role: m.role === 'model' ? 'assistant' : m.role,
+      content: m.content
+    }));
 
-  const result = await chat.sendMessage(systemPrompt);
-  res.json(JSON.parse(result.response.text()));
+    const completion = await groq.chat.completions.create({
+      messages: [
+        {
+          role: "system",
+          content: "You are a life coach AI. Analyze user goals. Ask max 4 follow-up questions. If you have enough info, return a JSON object with 'isComplete': true and a 'pathway' array of objects with 'step' and 'description'. Otherwise, return 'isComplete': false and 'nextQuestion'. Output valid JSON only."
+        },
+        ...formattedMessages
+      ],
+      model: "llama-3.3-70b-versatile",
+      response_format: { type: "json_object" }
+    });
+
+    res.json(JSON.parse(completion.choices[0].message.content));
+
+  } catch (error) {
+    res.status(500).json({ error: "Server error." });
+  }
 });
 
-app.listen(3000, () => console.log('Gemini Backend running on port 3000'));
+app.listen(3000);

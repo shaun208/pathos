@@ -1,29 +1,36 @@
-import React, { useState } from 'react';
+
+import React, { useState, useRef } from 'react'; // <-- 1. Add useRef here
 import { View, Text, TextInput, Button, StyleSheet, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import axios from 'axios';
 
-// 🛑 REPLACE WITH YOUR ACTUAL WINDOWS IPV4 ADDRESS 🛑
-const API_URL = 'http://192.168.56.1:3000/api/survey'; 
+const API_URL = 'http://10.180.8.239:3000/api/survey'; // (Keep your actual IP)
 
 export default function Survey() {
   const router = useRouter();
   const [history, setHistory] = useState<any[]>([]);
   const [input, setInput] = useState('');
-  const [question, setQuestion] = useState('What area of your life (social, mental, emotional) needs a boost?');
+  const [question, setQuestion] = useState('What area of your life needs a boost?');
   const [loading, setLoading] = useState(false);
+  
+  // 2. Create the lock
+  const isSubmitting = useRef(false); 
 
   const handleNext = async () => {
-    if (!input.trim()) return;
+    // 3. If input is empty OR if we are already submitting, ignore the press entirely
+    if (!input.trim() || isSubmitting.current) return; 
+    
+    isSubmitting.current = true; // Lock the door
     setLoading(true);
 
     const newHistory = [...history, { role: 'user', content: input }];
     try {
+      console.log("SENDING TO BACKEND:", newHistory);
       const response = await axios.post(API_URL, { messages: newHistory });
-      const data = response.data;
+      console.log("RECEIVED FROM BACKEND:", response.data);
 
+      const data = response.data;
       if (data.isComplete) {
-        // Encode the JSON to prevent the crash we fixed earlier
         const encodedPathway = encodeURIComponent(JSON.stringify(data.pathway));
         router.push({ pathname: '/pathway', params: { data: encodedPathway } });
       } else {
@@ -32,8 +39,10 @@ export default function Survey() {
         setInput('');
       }
     } catch (err) {
-      console.error("Backend Error:", err);
+      console.error("AXIOS ERROR:", err);
     } finally {
+      // 4. Unlock the door when the request is totally finished
+      isSubmitting.current = false; 
       setLoading(false);
     }
   };
@@ -41,8 +50,13 @@ export default function Survey() {
   return (
     <View style={styles.container}>
       <Text style={styles.text}>{question}</Text>
-      <TextInput style={styles.input} value={input} onChangeText={setInput} placeholder="Type here..." />
-      {loading ? <ActivityIndicator size="large" color="#000" /> : <Button title="Continue" onPress={handleNext} />}
+      <TextInput style={styles.input} value={input} onChangeText={setInput} />
+      {/* 5. Add disabled={loading} as a secondary backup */}
+      {loading ? (
+        <ActivityIndicator size="large" color="#000" />
+      ) : (
+        <Button title="Continue" onPress={handleNext} disabled={loading} />
+      )}
     </View>
   );
 }
