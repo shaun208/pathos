@@ -4,12 +4,12 @@ const Groq = require("groq-sdk");
 
 const app = express();
 app.use(cors());
-// CRITICAL: Bump up the JSON limit to handle base64 image strings
+
 app.use(express.json({ limit: '50mb' })); 
 
 const groq = new Groq({ apiKey: "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" });
 
-// --- 1. THE SURVEY STATE MACHINE (NOW 10 PHASES) ---
+
 app.post('/api/survey', async (req, res) => {
   try {
     const { messages } = req.body;
@@ -31,7 +31,7 @@ app.post('/api/survey', async (req, res) => {
     }
     Output valid JSON only. Do not add any other keys.`;
 
-    // PHASE 10: The Master Blueprint
+    
     if (turnCount >= 10) {
       systemPrompt = `You are a diagnostic life coach. You have the user's data on Productivity, Stress, Emotions, Social Confidence, Body/Diet Goals, Work Goals, Skincare Diagnosis, and schedule.
       You MUST return ONLY a JSON object exactly matching this structure:
@@ -58,7 +58,7 @@ app.post('/api/survey', async (req, res) => {
     else if (turnCount === 7) {
       systemPrompt = `Ask EXACTLY: "What are your specific work, study, or personal goals for today?" Set inputType to "text" and options to [].` + strictJSON;
     } 
-    // --- THE LEASH FOR PHASE 6 ---
+    
     else if (turnCount === 6) {
       systemPrompt = `The user just provided their skincare diagnosis. DO NOT ask them about their schedule or wake times yet! 
       Shift focus to Physical Health. Ask EXACTLY: "I've saved your custom skincare routine! Next, what are your current body goals and target daily calories?" 
@@ -89,7 +89,7 @@ app.post('/api/survey', async (req, res) => {
 
     const responseText = completion.choices[0].message.content;
     
-    // --- THE TITANIUM REGEX IS BACK ---
+    
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       throw new Error("AI failed to return valid JSON.");
@@ -101,8 +101,8 @@ app.post('/api/survey', async (req, res) => {
     res.status(500).json({ error: "Server error." });
   }
 });
-// --- 2. NEW ENDPOINT: THE AI DERMATOLOGIST ---
-// --- 2. NEW ENDPOINT: THE AI DERMATOLOGIST (FIXED) ---
+
+
 app.post('/api/analyze-face', async (req, res) => {
   try {
     const { imageBase64 } = req.body;
@@ -145,8 +145,8 @@ app.post('/api/analyze-face', async (req, res) => {
   }
 });
 
-// --- 3. EXISTING COACH & BREAKDOWN ROUTES ---
-// (Paste your existing /api/task-coach and /api/breakdown-goals routes here exactly as they were)
+
+
 app.post('/api/task-coach', async (req, res) => {
   try {
     const { taskName } = req.body;
@@ -179,8 +179,8 @@ app.post('/api/task-coach', async (req, res) => {
             }
           }
           CRITICAL RULES: 
-          1. If the task is Skincare, you MUST use the "routine" type and list the exact application steps in routineDetails.
-          2. If type is "recipe", fill recipeDetails and set routineDetails to null.
+          1. If type is "recipe", YOU MUST FILL OUT recipeDetails WITH REAL FOOD INGREDIENTS AND INSTRUCTIONS. Do NOT leave it null or empty.
+          2. If the task is Skincare, you MUST use the "routine" type and list the exact application steps in routineDetails.
           3. If type is "routine", fill routineDetails and set recipeDetails to null.
           4. If it's a timer, breathing, or goal_setter, set both details objects to null.
           Output valid JSON only, no markdown formatting.`
